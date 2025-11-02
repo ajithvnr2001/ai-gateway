@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   CACHE: KVNamespace;
   ENVIRONMENT: string;
+  ENCRYPTION_KEY: string; // Master key for encrypting API keys
 }
 
 export interface User {

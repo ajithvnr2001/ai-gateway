@@ -1,14 +1,29 @@
 import { Provider } from '../types';
+import { decrypt } from '../utils/crypto';
 
 export interface ProxyConfig {
   urls: string[]; // Changed from single url to array
   headers: Record<string, string>;
 }
 
-export function getProxyConfig(provider: Provider, originalRequest: Request): ProxyConfig {
+export async function getProxyConfig(
+  provider: Provider,
+  originalRequest: Request,
+  env: { ENCRYPTION_KEY: string }
+): Promise<ProxyConfig> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+
+  // Decrypt the API key just-in-time (handle both encrypted and plain-text keys for migration)
+  let decryptedApiKey: string;
+  try {
+    decryptedApiKey = await decrypt(provider.api_key_encrypted, env.ENCRYPTION_KEY);
+  } catch (error) {
+    // If decryption fails, assume it's a plain-text key (backward compatibility)
+    console.warn(`Failed to decrypt API key for provider ${provider.name}, assuming plain-text (migration needed):`, error);
+    decryptedApiKey = provider.api_key_encrypted;
+  }
 
   // Parse base_urls if available, fallback to base_url
   let baseUrls: string[] = [];
@@ -28,7 +43,7 @@ export function getProxyConfig(provider: Provider, originalRequest: Request): Pr
         urls: ['https://api.openai.com/v1/chat/completions'],
         headers: {
           ...headers,
-          'Authorization': `Bearer ${provider.api_key_encrypted}`,
+          'Authorization': `Bearer ${decryptedApiKey}`,
         }
       };
 
@@ -40,14 +55,14 @@ export function getProxyConfig(provider: Provider, originalRequest: Request): Pr
         ],
         headers: {
           ...headers,
-          'Authorization': `Bearer ${provider.api_key_encrypted}`,
+          'Authorization': `Bearer ${decryptedApiKey}`,
         }
       };
 
     case 'google':
     case 'gemini':
       return {
-        urls: [`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${provider.api_key_encrypted}`],
+        urls: [`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${decryptedApiKey}`],
         headers
       };
 
@@ -56,7 +71,7 @@ export function getProxyConfig(provider: Provider, originalRequest: Request): Pr
         urls: ['https://api.anthropic.com/v1/messages'],
         headers: {
           ...headers,
-          'x-api-key': provider.api_key_encrypted,
+          'x-api-key': decryptedApiKey,
           'anthropic-version': '2023-06-01'
         }
       };
@@ -69,7 +84,7 @@ export function getProxyConfig(provider: Provider, originalRequest: Request): Pr
         urls: baseUrls,
         headers: {
           ...headers,
-          'Authorization': `Bearer ${provider.api_key_encrypted}`,
+          'Authorization': `Bearer ${decryptedApiKey}`,
         }
       };
 

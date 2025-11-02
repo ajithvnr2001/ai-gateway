@@ -100,7 +100,7 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
 
         console.log(`Attempting primary provider: ${provider.name}`);
         attemptedProviders.push(provider.name);
-        const config = getProxyConfig(provider, c.req.raw);
+        const config = await getProxyConfig(provider, c.req.raw, c.env);
         const result = await proxyRequest(config, body);
 
         response = result.response;
@@ -141,7 +141,7 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
 
           console.log(`Attempting fallback provider: ${provider.name}`);
           attemptedProviders.push(provider.name);
-          const config = getProxyConfig(provider, c.req.raw);
+          const config = await getProxyConfig(provider, c.req.raw, c.env);
           const result = await proxyRequest(config, body);
 
           response = result.response;

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Env } from '../types';
 import { authMiddleware } from '../auth';
+import { encrypt } from '../utils/crypto';
 
 const providers = new Hono<{ Bindings: Env }>();
 
@@ -59,6 +60,9 @@ providers.post('/', async (c) => {
       return c.json({ error: 'Missing required fields: name, provider_type, api_key' }, 400);
     }
 
+    // Encrypt the API key before saving
+    const encryptedKey = await encrypt(api_key, c.env.ENCRYPTION_KEY);
+
     const providerId = `prov_${crypto.randomUUID()}`;
 
     // Handle multiple URLs
@@ -71,7 +75,7 @@ providers.post('/', async (c) => {
 
     await c.env.DB.prepare(
       'INSERT INTO providers (id, user_id, name, provider_type, base_url, base_urls, api_key_encrypted, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, 1)'
-    ).bind(providerId, userId, name, provider_type, base_url || null, urlsJson, api_key).run();
+    ).bind(providerId, userId, name, provider_type, base_url || null, urlsJson, encryptedKey).run();
 
     return c.json({
       id: providerId,
@@ -133,8 +137,10 @@ providers.put('/:id', async (c) => {
       values.push(JSON.stringify(base_urls.filter((u: string) => u)));
     }
     if (api_key !== undefined) {
+      // Encrypt the new API key before saving
+      const encryptedKey = await encrypt(api_key, c.env.ENCRYPTION_KEY);
       updateFields.push('api_key_encrypted = ?');
-      values.push(api_key);
+      values.push(encryptedKey);
     }
     if (is_enabled !== undefined) {
       updateFields.push('is_enabled = ?');
