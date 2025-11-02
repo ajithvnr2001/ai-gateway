@@ -88,6 +88,17 @@ export default function PricingPage() {
 
   const providers = [...new Set(globalModels.map(m => m.provider))];
 
+  const getStatus = (model: ModelCost) => {
+    if (model.input_cost_per_mil_tokens === 0 && model.output_cost_per_mil_tokens === 0) {
+      // Check if it's explicitly free or just has no price
+      if (model.model_name.includes(':free')) {
+        return <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">FREE</span>;
+      }
+      return <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Pricing Unavailable</span>;
+    }
+    return <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">PAID</span>;
+  };
+
   if (loading) {
     return <div className="text-center py-12">Loading...</div>;
   }
@@ -214,7 +225,7 @@ export default function PricingPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {globalModels.map((model) => (
-                  <tr key={model.id} className="hover:bg-gray-50">
+                  <tr key={model.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {model.model_name}
                     </td>
@@ -228,15 +239,7 @@ export default function PricingPage() {
                       ${model.output_cost_per_mil_tokens.toFixed(2)}/M tokens
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {model.input_cost_per_mil_tokens === 0 && model.output_cost_per_mil_tokens === 0 ? (
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          FREE
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          PAID
-                        </span>
-                      )}
+                      {getStatus(model)}
                     </td>
                   </tr>
                 ))}
