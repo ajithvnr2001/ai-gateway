@@ -41,8 +41,6 @@ export function getProxyConfig(provider: Provider, originalRequest: Request): Pr
         headers: {
           ...headers,
           'Authorization': `Bearer ${provider.api_key_encrypted}`,
-          'HTTP-Referer': 'https://ai-gateway.app',
-          'X-Title': 'AI Gateway',
         }
       };
 
@@ -89,14 +87,10 @@ export async function proxyRequest(
   // Try each URL in sequence
   for (const url of config.urls) {
     try {
-      // Force stream: false to ensure we get JSON responses instead of SSE
-      // This prevents issues when IDEs like Cline/Roo-Cline send stream: true
-      const requestBody = { ...body, stream: false };
-
       const response = await fetch(url, {
         method: 'POST',
         headers: config.headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {

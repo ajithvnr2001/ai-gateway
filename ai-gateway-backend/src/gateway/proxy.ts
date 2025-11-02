@@ -34,11 +34,21 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
     const fallbackRules = allRules.filter(r => r.condition === 'on_failure');
 
     // C. Get model from request body
-    const body = await c.req.json();
+    const body: any = await c.req.json(); // <-- Changed to 'any' to allow modification
     const modelName = body.model;
     if (!modelName) {
       return c.json({ error: 'Model not specified in request' }, 400);
     }
+
+    // --- START OF FIX ---
+    // Check if streaming is requested and force it to false.
+    // This ensures the provider always sends a single 'application/json' response,
+    // which our current proxyRequest function is built to handle.
+    if (body.stream === true) {
+      console.log('Client requested streaming. Forcing non-streaming for now.');
+      body.stream = false;
+    }
+    // --- END OF FIX ---
 
     // D. Costing & Budget Pre-Flight Check
     const costInfo = await findModelPrice(c.env.DB, user_id, modelName);
