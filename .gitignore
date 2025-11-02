@@ -23,9 +23,10 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Application logs (not source code directories)
 logs/
 *.log
+!**/logs/
 
 # Cloudflare
 .wrangler/

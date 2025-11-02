@@ -161,6 +161,14 @@ class ApiClient {
   async getLogsSummary() {
     return this.request('/api/logs/summary');
   }
+
+  async getLogsByProvider() {
+    return this.request('/api/logs/by-provider');
+  }
+
+  async getLogsByModel() {
+    return this.request('/api/logs/by-model');
+  }
 }
 
 export const api = new ApiClient();
