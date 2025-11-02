@@ -79,7 +79,7 @@ providers.post('/', async (c) => {
   }
 });
 
-// PUT update provider
+// PUT update provider (including enable/disable)
 providers.put('/:id', async (c) => {
   try {
     const userId = c.get('user_id');
@@ -125,6 +125,41 @@ providers.put('/:id', async (c) => {
     console.error('Error updating provider:', error);
     return c.json({
       error: 'Failed to update provider',
+      details: error.message
+    }, 500);
+  }
+});
+
+// PATCH toggle provider status (quick enable/disable)
+providers.patch('/:id/toggle', async (c) => {
+  try {
+    const userId = c.get('user_id');
+    const providerId = c.req.param('id');
+
+    // Get current status
+    const provider = await c.env.DB.prepare(
+      'SELECT is_enabled FROM providers WHERE id = ? AND user_id = ?'
+    ).bind(providerId, userId).first<{ is_enabled: number }>();
+
+    if (!provider) {
+      return c.json({ error: 'Provider not found' }, 404);
+    }
+
+    // Toggle status
+    const newStatus = provider.is_enabled === 1 ? 0 : 1;
+
+    await c.env.DB.prepare(
+      'UPDATE providers SET is_enabled = ? WHERE id = ? AND user_id = ?'
+    ).bind(newStatus, providerId, userId).run();
+
+    return c.json({
+      message: 'Provider status updated',
+      is_enabled: newStatus === 1
+    });
+  } catch (error: any) {
+    console.error('Error toggling provider:', error);
+    return c.json({
+      error: 'Failed to toggle provider',
       details: error.message
     }, 500);
   }

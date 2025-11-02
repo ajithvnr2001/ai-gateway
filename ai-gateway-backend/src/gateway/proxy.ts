@@ -24,15 +24,18 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
 
   try {
     // B. Fetch routing rules
-    const rules = await getRoutingRulesByRouter(c.env.DB, router_id);
-    if (rules.length === 0) {
+    const allRules = await getRoutingRulesByRouter(c.env.DB, router_id);
+    if (allRules.length === 0) {
       return c.json({ error: 'No routing rules configured' }, 400);
     }
+
+    // Separate primary and fallback rules
+    const primaryRules = allRules.filter(r => r.condition === 'primary');
+    const fallbackRules = allRules.filter(r => r.condition === 'on_failure');
 
     // C. Get model from request body
     const body = await c.req.json();
     const modelName = body.model;
-
     if (!modelName) {
       return c.json({ error: 'Model not specified in request' }, 400);
     }
@@ -50,7 +53,6 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
     // Check budget
     const budget = await getUserBudget(c.env.DB, user_id);
     const currentSpend = await getUserTotalSpend(c.env.DB, user_id);
-
     if (currentSpend >= budget) {
       return c.json({
         error: 'Budget exceeded',
@@ -59,37 +61,99 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
       }, 429);
     }
 
-    // E. Proxy Request (with simple failover)
+    // E. Proxy Request with Failover Logic
     let lastError: Error | null = null;
     let usedProvider: string | null = null;
+    let usedProviderId: string | null = null;
     let response: Response | null = null;
     let usage = { prompt_tokens: 0, completion_tokens: 0 };
     let isFailover = false;
+    const attemptedProviders: string[] = [];
 
-    for (const rule of rules) {
+    // Try primary rules first
+    for (const rule of primaryRules) {
       try {
         const provider = await getProviderById(c.env.DB, rule.provider_id);
         if (!provider || !provider.is_enabled) {
+          console.log(`Skipping disabled provider: ${rule.provider_id}`);
           continue;
         }
 
+        // Check if model is allowed for this rule
+        if (rule.allowed_models) {
+          const allowedModels = rule.allowed_models.split(',').map(m => m.trim());
+          if (!allowedModels.includes(modelName)) {
+            console.log(`Model ${modelName} not allowed for provider ${provider.name}`);
+            continue;
+          }
+        }
+
+        console.log(`Attempting primary provider: ${provider.name}`);
+        attemptedProviders.push(provider.name);
         const config = getProxyConfig(provider, c.req.raw);
         const result = await proxyRequest(config, body);
 
         response = result.response;
         usage = result.usage;
         usedProvider = provider.name;
-        break;
+        usedProviderId = provider.id;
+
+        console.log(`✓ Success with primary provider: ${provider.name}`);
+        break; // Success, exit loop
+
       } catch (error) {
         lastError = error as Error;
-        isFailover = true;
-        continue; // Try next rule
+        console.error(`✗ Primary provider failed: ${error}`);
+        continue; // Try next primary rule
+      }
+    }
+
+    // If all primary rules failed, try fallback rules
+    if (!response && fallbackRules.length > 0) {
+      console.log('All primary providers failed, trying fallback providers...');
+      isFailover = true;
+      for (const rule of fallbackRules) {
+        try {
+          const provider = await getProviderById(c.env.DB, rule.provider_id);
+          if (!provider || !provider.is_enabled) {
+            console.log(`Skipping disabled fallback provider: ${rule.provider_id}`);
+            continue;
+          }
+
+          // Check if model is allowed for this rule
+          if (rule.allowed_models) {
+            const allowedModels = rule.allowed_models.split(',').map(m => m.trim());
+            if (!allowedModels.includes(modelName)) {
+              console.log(`Model ${modelName} not allowed for fallback provider ${provider.name}`);
+              continue;
+            }
+          }
+
+          console.log(`Attempting fallback provider: ${provider.name}`);
+          attemptedProviders.push(provider.name);
+          const config = getProxyConfig(provider, c.req.raw);
+          const result = await proxyRequest(config, body);
+
+          response = result.response;
+          usage = result.usage;
+          usedProvider = provider.name;
+          usedProviderId = provider.id;
+
+          console.log(`✓ Success with fallback provider: ${provider.name}`);
+          break; // Success, exit loop
+
+        } catch (error) {
+          lastError = error as Error;
+          console.error(`✗ Fallback provider failed: ${error}`);
+          continue; // Try next fallback rule
+        }
       }
     }
 
     if (!response || !usedProvider) {
       return c.json({
         error: 'All providers failed',
+        attempted_providers: attemptedProviders,
         last_error: lastError?.message
       }, 502);
     }
@@ -121,14 +185,16 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
       ).run()
     );
 
-    // Add cost header to response
+    // Add metadata to response
     const responseData = await response.json();
     return c.json({
       ...responseData,
       _gateway_metadata: {
         cost: totalCost,
         provider: usedProvider,
-        latency_ms: latency
+        latency_ms: latency,
+        is_failover: isFailover,
+        attempted_providers: attemptedProviders
       }
     });
 

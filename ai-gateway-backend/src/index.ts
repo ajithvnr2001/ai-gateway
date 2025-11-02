@@ -14,7 +14,7 @@ const app = new Hono<{ Bindings: Env }>();
 // FIXED CORS - Handle preflight
 app.use('*', cors({
   origin: '*', // Allow all origins for development
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // Added PATCH
   allowHeaders: ['Content-Type', 'Authorization'],
   exposeHeaders: ['Content-Length'],
   maxAge: 600,

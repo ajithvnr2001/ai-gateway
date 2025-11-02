@@ -101,16 +101,34 @@ export default function RoutersPage() {
     }
   };
 
+  const getPrimaryRules = () => {
+    return selectedRouter?.rules?.filter((r: any) => r.condition === 'primary') || [];
+  };
+
+  const getFallbackRules = () => {
+    return selectedRouter?.rules?.filter((r: any) => r.condition === 'on_failure') || [];
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Routers</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Routers & Failover Configuration</h1>
         <button
           onClick={() => setShowRouterForm(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         >
           Create Router
         </button>
+      </div>
+
+      {/* Info Banner */}
+      <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+        <h3 className="text-sm font-semibold text-blue-900 mb-1">How Failover Works</h3>
+        <ul className="text-sm text-blue-800 space-y-1">
+          <li>• <strong>Primary Rules</strong>: Tried first in priority order (lower number = higher priority)</li>
+          <li>• <strong>Fallback Rules</strong>: Only used if ALL primary rules fail</li>
+          <li>• <strong>Allowed Models</strong>: Restrict which models can use this provider (optional, comma-separated)</li>
+        </ul>
       </div>
 
       {/* Create Router Form */}
@@ -213,21 +231,22 @@ export default function RoutersPage() {
                             onChange={(e) => setRuleForm({ ...ruleForm, priority: parseInt(e.target.value) })}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
                           />
+                          <p className="text-xs text-gray-500 mt-1">Lower = tried first</p>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700">Condition</label>
+                          <label className="block text-sm font-medium text-gray-700">Rule Type</label>
                           <select
                             value={ruleForm.condition}
                             onChange={(e) => setRuleForm({ ...ruleForm, condition: e.target.value })}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
                           >
-                            <option value="primary">Primary</option>
-                            <option value="on_failure">On Failure (Fallback)</option>
+                            <option value="primary">Primary (Try First)</option>
+                            <option value="on_failure">Fallback (On Failure)</option>
                           </select>
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">Provider</label>
+                        <label className="block text-sm font-medium text-gray-700">Provider *</label>
                         <select
                           required
                           value={ruleForm.provider_id}
@@ -244,7 +263,7 @@ export default function RoutersPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700">
-                          Allowed Models (optional, comma-separated)
+                          Allowed Models (Optional)
                         </label>
                         <input
                           type="text"
@@ -253,6 +272,9 @@ export default function RoutersPage() {
                           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
                           placeholder="gpt-4o,gpt-4o-mini"
                         />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Leave empty to allow all models, or specify comma-separated list
+                        </p>
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -273,41 +295,42 @@ export default function RoutersPage() {
                   </div>
                 )}
 
-                {/* Rules List */}
-                <div>
-                  <h3 className="font-semibold mb-3 text-gray-900">
-                    Routing Rules ({selectedRouter.rules?.length || 0})
+                {/* Primary Rules */}
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-3 text-gray-900 flex items-center gap-2">
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">PRIMARY</span>
+                    Primary Routing Rules ({getPrimaryRules().length})
                   </h3>
-                  {selectedRouter.rules && selectedRouter.rules.length > 0 ? (
+                  {getPrimaryRules().length > 0 ? (
                     <div className="space-y-2">
-                      {selectedRouter.rules.map((rule: any) => {
+                      {getPrimaryRules().map((rule: any) => {
                         const provider = providers.find(p => p.id === rule.provider_id);
                         return (
                           <div
                             key={rule.id}
-                            className="flex justify-between items-center p-3 border border-gray-200 rounded-md bg-white"
+                            className="flex justify-between items-center p-3 border-2 border-blue-200 rounded-md bg-blue-50"
                           >
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded">
+                                <span className="px-2 py-1 text-xs font-bold bg-blue-600 text-white rounded">
                                   Priority {rule.priority}
                                 </span>
-                                <span className="px-2 py-1 text-xs font-semibold bg-gray-100 text-gray-800 rounded">
-                                  {rule.condition}
+                                <span className="font-medium text-gray-900">
+                                  {provider?.name || 'Unknown'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  ({provider?.provider_type})
                                 </span>
                               </div>
-                              <p className="text-sm text-gray-900 mt-1">
-                                Provider: <span className="font-medium">{provider?.name || 'Unknown'}</span>
-                              </p>
                               {rule.allowed_models && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Models: {rule.allowed_models}
+                                <p className="text-xs text-gray-600 mt-1">
+                                  🎯 Models: {rule.allowed_models}
                                 </p>
                               )}
                             </div>
                             <button
                               onClick={() => deleteRule(selectedRouter.router.id, rule.id)}
-                              className="text-red-600 hover:text-red-800 text-sm"
+                              className="text-red-600 hover:text-red-800 text-sm font-medium"
                             >
                               Delete
                             </button>
@@ -316,8 +339,58 @@ export default function RoutersPage() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-sm">
-                      No rules yet. Add a rule to define routing logic.
+                    <p className="text-gray-500 text-sm bg-gray-50 p-3 rounded border border-gray-200">
+                      No primary rules. Add at least one primary rule.
+                    </p>
+                  )}
+                </div>
+
+                {/* Fallback Rules */}
+                <div>
+                  <h3 className="font-semibold mb-3 text-gray-900 flex items-center gap-2">
+                    <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded">FALLBACK</span>
+                    Fallback Rules ({getFallbackRules().length})
+                  </h3>
+                  {getFallbackRules().length > 0 ? (
+                    <div className="space-y-2">
+                      {getFallbackRules().map((rule: any) => {
+                        const provider = providers.find(p => p.id === rule.provider_id);
+                        return (
+                          <div
+                            key={rule.id}
+                            className="flex justify-between items-center p-3 border-2 border-orange-200 rounded-md bg-orange-50"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 text-xs font-bold bg-orange-600 text-white rounded">
+                                  Priority {rule.priority}
+                                </span>
+                                <span className="font-medium text-gray-900">
+                                  {provider?.name || 'Unknown'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  ({provider?.provider_type})
+                                </span>
+                              </div>
+                              {rule.allowed_models && (
+                                <p className="text-xs text-gray-600 mt-1">
+                                  🎯 Models: {rule.allowed_models}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => deleteRule(selectedRouter.router.id, rule.id)}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-sm bg-gray-50 p-3 rounded border border-gray-200">
+                      No fallback rules. Add fallback rules for redundancy.
                     </p>
                   )}
                 </div>

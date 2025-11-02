@@ -58,18 +58,24 @@ class ApiClient {
     });
   }
 
-  async updateProvider(id: string, data: any) {
-    return this.request(`/api/providers/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
+async updateProvider(id: string, data: any) {
+  return this.request(`/api/providers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
 
-  async deleteProvider(id: string) {
-    return this.request(`/api/providers/${id}`, {
-      method: 'DELETE',
-    });
-  }
+async toggleProvider(id: string) {
+  return this.request(`/api/providers/${id}/toggle`, {
+    method: 'PATCH',
+  });
+}
+
+async deleteProvider(id: string) {
+  return this.request(`/api/providers/${id}`, {
+    method: 'DELETE',
+  });
+}
 
   // Routers
   async getRouters() {
