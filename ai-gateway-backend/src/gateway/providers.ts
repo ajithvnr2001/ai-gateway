@@ -89,10 +89,14 @@ export async function proxyRequest(
   // Try each URL in sequence
   for (const url of config.urls) {
     try {
+      // Force stream: false to ensure we get JSON responses instead of SSE
+      // This prevents issues when IDEs like Cline/Roo-Cline send stream: true
+      const requestBody = { ...body, stream: false };
+
       const response = await fetch(url, {
         method: 'POST',
         headers: config.headers,
-        body: JSON.stringify(body)
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
