@@ -9,6 +9,7 @@ export interface Provider {
   name: string;
   provider_type: string;
   base_url?: string;
+  base_urls?: string; // JSON string array: ["url1", "url2"]
   is_enabled: boolean;
 }
 

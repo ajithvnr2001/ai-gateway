@@ -95,7 +95,7 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
 
         response = result.response;
         usage = result.usage;
-        usedProvider = provider.name;
+        usedProvider = `${provider.name} (${result.url_used})`; // Track which URL worked
         usedProviderId = provider.id;
 
         console.log(`✓ Success with primary provider: ${provider.name}`);
@@ -136,7 +136,7 @@ export async function handleGatewayRequest(c: Context<{ Bindings: Env }>) {
 
           response = result.response;
           usage = result.usage;
-          usedProvider = provider.name;
+          usedProvider = `${provider.name} (${result.url_used})`; // Track which URL worked
           usedProviderId = provider.id;
 
           console.log(`✓ Success with fallback provider: ${provider.name}`);

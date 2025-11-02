@@ -14,12 +14,12 @@ export default function ProvidersPage() {
   const [createFormData, setCreateFormData] = useState({
     name: '',
     provider_type: 'openai',
-    base_url: '',
+    base_urls: [''], // Changed to array
     api_key: ''
   });
   const [editFormData, setEditFormData] = useState({
     name: '',
-    base_url: '',
+    base_urls: [''], // Changed to array
     api_key: '',
     update_api_key: false
   });
@@ -39,12 +39,31 @@ export default function ProvidersPage() {
     }
   };
 
+  // Helper functions for multiple URLs
+  const addUrlField = () => {
+    setCreateFormData({
+      ...createFormData,
+      base_urls: [...createFormData.base_urls, '']
+    });
+  };
+
+  const removeUrlField = (index: number) => {
+    const newUrls = createFormData.base_urls.filter((_, i) => i !== index);
+    setCreateFormData({ ...createFormData, base_urls: newUrls });
+  };
+
+  const updateUrl = (index: number, value: string) => {
+    const newUrls = [...createFormData.base_urls];
+    newUrls[index] = value;
+    setCreateFormData({ ...createFormData, base_urls: newUrls });
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await api.createProvider(createFormData);
       setShowCreateForm(false);
-      setCreateFormData({ name: '', provider_type: 'openai', base_url: '', api_key: '' });
+      setCreateFormData({ name: '', provider_type: 'openai', base_urls: [''], api_key: '' });
       loadProviders();
     } catch (error: any) {
       alert('Error: ' + error.message);
@@ -53,26 +72,61 @@ export default function ProvidersPage() {
 
   const openEditModal = async (provider: Provider) => {
     setEditingProvider(provider);
+
+    // Parse base_urls from provider
+    let urls = [''];
+    if (provider.base_urls) {
+      try {
+        urls = JSON.parse(provider.base_urls);
+      } catch {
+        urls = provider.base_url ? [provider.base_url] : [''];
+      }
+    } else if (provider.base_url) {
+      urls = [provider.base_url];
+    }
+
     setEditFormData({
       name: provider.name,
-      base_url: provider.base_url || '',
+      base_urls: urls,
       api_key: '',
       update_api_key: false
     });
     setShowEditModal(true);
   };
 
+  // Edit modal URL helpers
+  const addEditUrl = () => {
+    setEditFormData({
+      ...editFormData,
+      base_urls: [...editFormData.base_urls, '']
+    });
+  };
+
+  const removeEditUrl = (index: number) => {
+    const newUrls = editFormData.base_urls.filter((_, i) => i !== index);
+    setEditFormData({ ...editFormData, base_urls: newUrls });
+  };
+
+  const updateEditUrl = (index: number, value: string) => {
+    const newUrls = [...editFormData.base_urls];
+    newUrls[index] = value;
+    setEditFormData({ ...editFormData, base_urls: newUrls });
+  };
+
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProvider) return;
+
     try {
       const updateData: any = {
         name: editFormData.name,
-        base_url: editFormData.base_url
+        base_urls: editFormData.base_urls.filter(u => u) // Remove empty URLs
       };
+
       if (editFormData.update_api_key && editFormData.api_key) {
         updateData.api_key = editFormData.api_key;
       }
+
       await api.updateProvider(editingProvider.id, updateData);
       setShowEditModal(false);
       setEditingProvider(null);
@@ -149,15 +203,39 @@ export default function ProvidersPage() {
             </div>
             {createFormData.provider_type === 'custom' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700">Base URL *</label>
-                <input
-                  type="url"
-                  required
-                  value={createFormData.base_url}
-                  onChange={(e) => setCreateFormData({ ...createFormData, base_url: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                  placeholder="https://api.example.com/v1/chat/completions"
-                />
+                <label className="block text-sm font-medium text-gray-700">
+                  Base URLs (Multiple for fallback)
+                </label>
+                {createFormData.base_urls.map((url, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={(e) => updateUrl(index, e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                      placeholder="https://api.example.com/v1/chat/completions"
+                    />
+                    {createFormData.base_urls.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeUrlField(index)}
+                        className="px-3 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addUrlField}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  + Add Another URL
+                </button>
+                <p className="text-xs text-gray-500 mt-2">
+                  Add multiple URLs for automatic fallback. First working URL will be used.
+                </p>
               </div>
             )}
             <div>
@@ -281,13 +359,39 @@ export default function ProvidersPage() {
               </div>
               {editingProvider.provider_type === 'custom' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Base URL</label>
-                  <input
-                    type="url"
-                    value={editFormData.base_url}
-                    onChange={(e) => setEditFormData({ ...editFormData, base_url: e.target.value })}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Base URLs (Multiple for fallback)
+                  </label>
+                  {editFormData.base_urls.map((url, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={(e) => updateEditUrl(index, e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                        placeholder="https://openrouter.ai/api/v1/chat/completions"
+                      />
+                      {editFormData.base_urls.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeEditUrl(index)}
+                          className="px-3 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200 text-sm"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addEditUrl}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    + Add Another URL
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Add multiple URLs for automatic fallback. First working URL will be used.
+                  </p>
                 </div>
               )}
               <div>

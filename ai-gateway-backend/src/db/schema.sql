@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS providers (
     name TEXT NOT NULL,
     provider_type TEXT NOT NULL,
     base_url TEXT,
+    base_urls TEXT, -- JSON array of URLs for fallback support
     api_key_encrypted TEXT NOT NULL,
     is_enabled INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

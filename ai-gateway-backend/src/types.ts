@@ -17,7 +17,8 @@ export interface Provider {
   user_id: string;
   name: string;
   provider_type: string;
-  base_url?: string;
+  base_url?: string; // Keep for backward compatibility
+  base_urls?: string; // JSON string array: ["url1", "url2"]
   api_key_encrypted: string;
   is_enabled: boolean;
 }

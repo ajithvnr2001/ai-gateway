@@ -12,7 +12,7 @@ providers.get('/', async (c) => {
   try {
     const userId = c.get('user_id');
     const { results } = await c.env.DB.prepare(
-      'SELECT id, user_id, name, provider_type, base_url, is_enabled FROM providers WHERE user_id = ?'
+      'SELECT id, user_id, name, provider_type, base_url, base_urls, is_enabled FROM providers WHERE user_id = ?'
     ).bind(userId).all();
 
     return c.json({ providers: results || [] });
@@ -32,7 +32,7 @@ providers.get('/:id', async (c) => {
     const providerId = c.req.param('id');
 
     const provider = await c.env.DB.prepare(
-      'SELECT id, user_id, name, provider_type, base_url, is_enabled FROM providers WHERE id = ? AND user_id = ?'
+      'SELECT id, user_id, name, provider_type, base_url, base_urls, is_enabled FROM providers WHERE id = ? AND user_id = ?'
     ).bind(providerId, userId).first();
 
     if (!provider) {
@@ -53,7 +53,7 @@ providers.get('/:id', async (c) => {
 providers.post('/', async (c) => {
   try {
     const userId = c.get('user_id');
-    const { name, provider_type, base_url, api_key } = await c.req.json();
+    const { name, provider_type, base_url, base_urls, api_key } = await c.req.json();
 
     if (!name || !provider_type || !api_key) {
       return c.json({ error: 'Missing required fields: name, provider_type, api_key' }, 400);
@@ -61,9 +61,17 @@ providers.post('/', async (c) => {
 
     const providerId = `prov_${crypto.randomUUID()}`;
 
+    // Handle multiple URLs
+    let urlsJson = '[]';
+    if (base_urls && Array.isArray(base_urls)) {
+      urlsJson = JSON.stringify(base_urls.filter((u: string) => u));
+    } else if (base_url) {
+      urlsJson = JSON.stringify([base_url]);
+    }
+
     await c.env.DB.prepare(
-      'INSERT INTO providers (id, user_id, name, provider_type, base_url, api_key_encrypted, is_enabled) VALUES (?, ?, ?, ?, ?, ?, 1)'
-    ).bind(providerId, userId, name, provider_type, base_url || null, api_key).run();
+      'INSERT INTO providers (id, user_id, name, provider_type, base_url, base_urls, api_key_encrypted, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, 1)'
+    ).bind(providerId, userId, name, provider_type, base_url || null, urlsJson, api_key).run();
 
     return c.json({
       id: providerId,
@@ -73,8 +81,7 @@ providers.post('/', async (c) => {
     console.error('Error creating provider:', error);
     return c.json({
       error: 'Failed to create provider',
-      details: error.message,
-      stack: error.stack
+      details: error.message
     }, 500);
   }
 });
@@ -84,8 +91,32 @@ providers.put('/:id', async (c) => {
   try {
     const userId = c.get('user_id');
     const providerId = c.req.param('id');
-    const { name, base_url, api_key, is_enabled } = await c.req.json();
+    const body = await c.req.json();
+    const { name, base_url, base_urls, api_key, is_enabled, toggle } = body;
 
+    if (toggle === true) {
+      // Toggle logic (unchanged)
+      const provider = await c.env.DB.prepare(
+        'SELECT is_enabled FROM providers WHERE id = ? AND user_id = ?'
+      ).bind(providerId, userId).first<{ is_enabled: number }>();
+
+      if (!provider) {
+        return c.json({ error: 'Provider not found' }, 404);
+      }
+
+      const newStatus = provider.is_enabled === 1 ? 0 : 1;
+
+      await c.env.DB.prepare(
+        'UPDATE providers SET is_enabled = ? WHERE id = ? AND user_id = ?'
+      ).bind(newStatus, providerId, userId).run();
+
+      return c.json({
+        message: 'Provider status updated',
+        is_enabled: newStatus === 1
+      });
+    }
+
+    // Normal update with multiple URLs support
     const updateFields: string[] = [];
     const values: any[] = [];
 
@@ -96,6 +127,10 @@ providers.put('/:id', async (c) => {
     if (base_url !== undefined) {
       updateFields.push('base_url = ?');
       values.push(base_url);
+    }
+    if (base_urls !== undefined && Array.isArray(base_urls)) {
+      updateFields.push('base_urls = ?');
+      values.push(JSON.stringify(base_urls.filter((u: string) => u)));
     }
     if (api_key !== undefined) {
       updateFields.push('api_key_encrypted = ?');

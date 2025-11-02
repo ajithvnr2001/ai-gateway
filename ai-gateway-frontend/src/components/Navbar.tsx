@@ -36,6 +36,9 @@ export default function Navbar() {
             <Link href="/dashboard/logs" className="flex items-center text-gray-600 hover:text-gray-900">
               Logs
             </Link>
+            <Link href="/dashboard/usage" className="flex items-center text-gray-600 hover:text-gray-900">
+              📖 Usage
+            </Link>
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600">{user?.email}</span>
